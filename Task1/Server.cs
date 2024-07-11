@@ -8,25 +8,39 @@ using System.Threading.Tasks;
 
 namespace Task1
 {
-    public class Server
+    public class Server : AbstractClient
     {
-        public void WaitForMessage()
+        public Server(int receiverPort) : base(receiverPort)
         {
-            UdpClient udpClient = new UdpClient(12345);
-            IPEndPoint iPEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            Console.WriteLine("Сервер ждет сообщение от клиента.");
-            while(true)
-            {
-                byte[] buffer = udpClient.Receive(ref iPEndPoint);
-                var messageJson = Encoding.UTF8.GetString(buffer);
+            Console.WriteLine("Сервер инициализирован с IP адресом:");
+            Console.WriteLine(this.IPEndPoint.Address.ToString());
+            Console.WriteLine("Номер порта:");
+            Console.WriteLine(this.IPEndPoint.Port.ToString());
+        }
 
-                Message? message = Message.DeserializeFromJson(messageJson);
-                if (message != null) PrintGetMsgLog(message);
+        public void Run()
+        {
+            Console.WriteLine("Сервер запущен.");
+            while (true)
+            {
+                var message = ReceiveMessage(new IPEndPoint(IPAddress.Any, 0));
+                Console.WriteLine(GetMessageReceivedText(message));
+                SendConfirmation(message);
             }
         }
-        public void PrintGetMsgLog(Message message)
+       
+        private static string GetMessageReceivedText(Message message)
         {
-            Console.WriteLine($"{message.DateTime}: Получено сообщение от \"{message.From}\" к \"{message.To}\" с текстом: \"{message.Text}\".");
+            return $"{message.DateTime}: Получено сообщение от \"{message.From}\" к \"{message.To}\" с текстом: \"{message.Text}\".";
+        }
+        private void SendConfirmation(Message message)
+        {
+            IPEndPoint senderEndPoint = new IPEndPoint(IPAddress.Parse(message.SenderIP), message.SenderPort);
+            if (senderEndPoint != null)
+            {
+                var answer = new Message("Message delivered.", "Server", message.From, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
+                this.SendMessage(answer, senderEndPoint);
+            }
         }
     }
 }

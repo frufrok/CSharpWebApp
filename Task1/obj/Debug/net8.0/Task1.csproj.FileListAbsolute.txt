@@ -12,3 +12,4 @@ c:\Users\User\source\repos\CSharpWebApp\Task1\obj\Debug\net8.0\refint\Task1.dll
 c:\Users\User\source\repos\CSharpWebApp\Task1\obj\Debug\net8.0\Task1.pdb
 C:\Users\User\source\repos\CSharpWebApp\Task1\obj\Debug\net8.0\Task1.genruntimeconfig.cache
 C:\Users\User\source\repos\CSharpWebApp\Task1\obj\Debug\net8.0\ref\Task1.dll
+c:\Users\User\source\repos\CSharpWebApp\Task1\obj\Debug\net8.0\Task1.sourcelink.json
