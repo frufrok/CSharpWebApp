@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using Task1;
 
-namespace Task1
+namespace Task1Client
 {
     public class Client : AbstractClient
     {
@@ -27,13 +28,20 @@ namespace Task1
                 while (true)
                 {
                     string? text;
+                    bool exitFlag;
                     do
                     {
                         Console.WriteLine("Введите сообщение:");
                         text = Console.ReadLine();
+                        exitFlag = text!= null && text.ToLower().Equals("exit");
                     }
-                    while (string.IsNullOrEmpty(text));
-                    SendMessage(from, to, text);
+                    while (string.IsNullOrEmpty(text) && !exitFlag);
+                    if (exitFlag)
+                    {
+                        Console.WriteLine("Работа клиента завершена.");
+                        break;
+                    }
+                    else SendMessage(from, to, text);
                 }
             }
         }
