@@ -28,7 +28,7 @@ namespace Task1
                 throw new Exception($"Can't parse ip address from string \"{ipString}\".");
             }
         }
-        private static string GetLocalIPAddress()
+        public static string GetLocalIPAddress()
         {
             var host = Dns.GetHostEntry(Dns.GetHostName());
             foreach (var ip in host.AddressList)
@@ -40,7 +40,7 @@ namespace Task1
             }
             throw new Exception("No network adapters with an IPv4 address in the system!");
         }
-        private protected Message ReceiveMessage(IPEndPoint senderEndPoint)
+        protected Message ReceiveMessage(IPEndPoint senderEndPoint)
         {
             
             while (true)
@@ -52,7 +52,7 @@ namespace Task1
                 if (message != null) return message;
             }
         }
-        private protected void SendMessage(Message message, IPEndPoint receiverEndPoint)
+        protected void SendMessage(Message message, IPEndPoint receiverEndPoint)
         {
                 string json = message.SerializeToJson();
                 var data = Encoding.UTF8.GetBytes(json);
