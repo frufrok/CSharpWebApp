@@ -12,6 +12,7 @@ namespace Task1
     {
         public Server(int receiverPort) : base(receiverPort)
         {
+            cancellationToken = cancellationTokenSource.Token;
             Console.WriteLine("Сервер инициализирован с IP адресом:");
             Console.WriteLine(this.IPEndPoint.Address.ToString());
             Console.WriteLine("Номер порта:");
@@ -27,23 +28,23 @@ namespace Task1
                 Console.ReadKey();
                 Console.WriteLine();
                 Console.WriteLine("Работа сервера будет завершена после получения следующего сообщения.");
-                ExitFlag = true;
+                cancellationTokenSource.Cancel();
             }
             void cycle()
             {
-                while (true && !ExitFlag)
+                while (true && !cancellationToken.IsCancellationRequested)
                 {
                     var message = ReceiveMessage(new IPEndPoint(IPAddress.Any, 0));
                     Console.WriteLine(GetMessageReceivedText(message));
                     SendConfirmation(message);
                 }
             }
-            Thread exitThread = new Thread(() => exit());
-            Thread serverThread = new Thread(() => cycle());
-            exitThread.Start();
-            serverThread.Start();
+            var serverTask = new Task(cycle, cancellationToken);
+            List<Task> tasks = [Task.Run(cycle), Task.Run(exit)];
+            Task.WaitAll(tasks.ToArray());
         }
-        private bool ExitFlag = false;
+        private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        private readonly CancellationToken cancellationToken;
         private static string GetMessageReceivedText(Message message)
         {
             return $"{message.DateTime}: Получено сообщение от \"{message.From}\" к \"{message.To}\" с текстом: \"{message.Text}\".";
