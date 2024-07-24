@@ -9,9 +9,11 @@ namespace Task1Client
 {
     public class Client : AbstractClient
     {
-        public IPEndPoint ServerEndPoint { get; init; }
-        public Client(int receiverPort, IPEndPoint serverEndPoint) : base(receiverPort)
+        public string Name { get; init; }
+        public IPEndPoint? ServerEndPoint { get; init; }
+        public Client(string Name, int receiverPort, IPEndPoint serverEndPoint) : base(receiverPort)
         {
+            this.Name = Name;
             ServerEndPoint = serverEndPoint;
             Console.WriteLine("Клиент инициализирован c IP адресом:");
             Console.WriteLine(this.IPEndPoint.Address.ToString());
@@ -20,15 +22,43 @@ namespace Task1Client
             Console.WriteLine("IP адрес сервера:");
             Console.WriteLine(ServerEndPoint?.Address.ToString());
         }
-        public void Run(string from, string to)
+        private void RegisterClient()
+        {
+            if (ServerEndPoint != null)
+            {
+                SendMessage("server", "register", out Message? answer);
+                if (answer != null && answer.Text.ToLower().StartsWith("ok"))
+                {
+                    Console.WriteLine("Client is registered.");
+                }
+                else 
+                {
+                    throw new Exception("Client is not registered.");
+                }
+            }
+            else
+            {
+                throw new Exception("Server IPEndPoint is null. Cannot register client.");
+            }
+        }
+        public void Run()
         {
             Console.WriteLine("Клиент запущен.");
+            RegisterClient();
             while (true)
             {
                 while (true)
                 {
                     string? text;
+                    string? toName;
                     bool exitFlag;
+                    do
+                    {
+                        Console.WriteLine("Введите адресата сообщения или введите 'public', чтобы написать в общий чат:");
+                        toName = Console.ReadLine();
+                        exitFlag = toName != null && toName.ToLower().Equals("exit");
+                    }
+                    while (string.IsNullOrEmpty(toName) && !exitFlag);
                     do
                     {
                         Console.WriteLine("Введите сообщение:");
@@ -41,19 +71,29 @@ namespace Task1Client
                         Console.WriteLine("Работа клиента завершена.");
                         break;
                     }
-                    else SendMessage(from, to, text);
+                    else SendPersonalMessage(toName??String.Empty, text??String.Empty);
                 }
             }
         }
-        private void SendMessage(string from, string to, string text)
+        private void SendMessage(string to, string text, out Message? answer)
         {
-            var msg = new Message(text, from, to, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
-            SendMessage(msg, ServerEndPoint);
-            var answer = ReceiveMessage(ServerEndPoint);
-            if (answer.Text.Equals("Message delivered."))
-                Console.WriteLine("Message delivered.");
+            if (ServerEndPoint != null)
+            {
+                var msg = new Message(text, this.Name, to, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
+                SendMessage(msg, ServerEndPoint);
+                answer = ReceiveMessage(ServerEndPoint, 5000);
+            }
             else
-                Console.WriteLine("Message delivery confirmation doesn't received.");
+            {
+                Console.WriteLine("EndPoint сервера недоступен.");
+                answer = null;
+            }
+        }
+        private void SendPersonalMessage(string to, string text)
+        {
+            SendMessage(to, text, out Message? answer);
+            if (answer != null && answer.Text.Equals("Message delivered.")) Console.WriteLine("Message delivered.");
+            else Console.WriteLine("Message delivery confirmation doesn't received.");
         }
     }
 }

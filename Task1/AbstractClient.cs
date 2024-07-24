@@ -16,9 +16,7 @@ namespace Task1
         public UdpClient UdpClient { get; init; }
         public AbstractClient(int receiverPort)
         {
-            this.ReceiverPort = receiverPort;
             var ipString = GetLocalIPAddress();
-            UdpClient = new UdpClient(receiverPort);
             if (IPAddress.TryParse(ipString, out IPAddress? ip))
             {
                 this.IPEndPoint = new IPEndPoint(ip, receiverPort);
@@ -26,6 +24,12 @@ namespace Task1
             else
             {
                 throw new Exception($"Can't parse ip address from string \"{ipString}\".");
+            }
+            this.ReceiverPort = this.IPEndPoint.Port;
+            UdpClient = new UdpClient(receiverPort);
+            if (UdpClient.Client.LocalEndPoint != null)
+            {
+                this.IPEndPoint.Port = ((IPEndPoint)UdpClient.Client.LocalEndPoint).Port;
             }
         }
         public static string GetLocalIPAddress()
@@ -40,16 +44,40 @@ namespace Task1
             }
             throw new Exception("No network adapters with an IPv4 address in the system!");
         }
-        protected Message ReceiveMessage(IPEndPoint senderEndPoint)
+        protected Message? ReceiveMessage(IPEndPoint senderEndPoint, int remainingTime)
         {
-            
             while (true)
             {
-                byte[] buffer = this.UdpClient.Receive(ref senderEndPoint);
-                var messageJson = Encoding.UTF8.GetString(buffer);
-
-                Message? message = Message.DeserializeFromJson(messageJson);
-                if (message != null) return message;
+                byte[]? buffer = null;
+                object lockObj = new object();
+                var receiveTask = Task.Run(() =>
+                {
+                    try
+                    {
+                        buffer = this.UdpClient.Receive(ref senderEndPoint);
+                    }
+                    catch (SocketException ex)
+                    {
+                        Console.WriteLine("Нет ответа от сервера.");
+                    }
+                });
+                var remaining = Task.Run(() => Thread.Sleep(remainingTime));
+                Task.WaitAny([receiveTask, remaining]);
+                lock (lockObj)
+                {
+                    if (buffer != null)
+                    {
+                        var messageJson = Encoding.UTF8.GetString(buffer);
+                        Message? message = Message.DeserializeFromJson(messageJson);
+                        if (message != null) return message;
+                    }
+                    else
+                    {
+                        UdpClient.Close();
+                        receiveTask.Wait();
+                        return null;
+                    }
+                }
             }
         }
         protected void SendMessage(Message message, IPEndPoint receiverEndPoint)

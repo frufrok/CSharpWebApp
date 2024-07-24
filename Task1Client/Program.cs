@@ -12,13 +12,13 @@ namespace Task1Client
     {
         public static void Main(string[] args)
         {
-            if (args.Length == 2)
+            if (args.Length == 1)
             {
                 try
                 {
                     var serverIPEndPoint = new IPEndPoint(IPAddress.Parse(AbstractClient.GetLocalIPAddress()), 12345);
-                    Client client = new Client(12346, serverIPEndPoint);
-                    client.Run(args[0], args[1]);
+                    Client client = new Client(args[0], 0, serverIPEndPoint);
+                    client.Run();
                 }
                 catch (Exception ex)
                 {
@@ -27,7 +27,7 @@ namespace Task1Client
             }
             else
             {
-                Console.WriteLine("Запустите клиент с использованием двух строковых аргументов: \"от кого\" и \"кому\".");
+                Console.WriteLine("Запустите клиент с использованием одного аргумента – имени пользователя.");
             }
         }
     }
