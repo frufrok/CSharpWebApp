@@ -12,7 +12,7 @@ namespace Task1Client
     {
         public string Name { get; init; }
         public IPEndPoint? ServerEndPoint { get; init; }
-        private ConcurrentQueue<Message> rawMessages;
+        private ConcurrentQueue<Message> rawMessages = [];
         public Client(string Name, int receiverPort, IPEndPoint serverEndPoint) : base(receiverPort)
         {
             this.Name = Name;
@@ -26,14 +26,14 @@ namespace Task1Client
             Console.WriteLine("Клиент запущен.");
             Task.Run(() => base.StartMessageReceivingAsync((msg, ip) => { this.rawMessages.Enqueue(msg); }));
             Console.WriteLine("Запущено прослушивание входящих сообщений.");
-            //Task.Run(this.PrintInbox);
+            Task.Run(this.PrintInbox);
             Console.WriteLine("Запущен вывод входящих сообщений в консоль.");
             if (RegisterClient()) StartWorkingCycle();
             else Console.WriteLine("Регистрация клиента не удалась. Работа программы завершена.");
         }
         private bool RegisterClient()
         {
-            Console.Write("Регистрация клиента");
+            Console.WriteLine("Регистрация клиента");
             if (ServerEndPoint != null)
             {
                 int lastMessageNumber = base.InBox.Count;
@@ -47,17 +47,15 @@ namespace Task1Client
                         var msg = base.InBox.ElementAt(i).Item1;
                         if (msg.From.ToLower().Equals("server") && msg.Text.ToLower().Equals("register is ok"))
                         {
-                            Console.WriteLine();
                             Console.WriteLine("Регистрация успешна.");
                             return true;
                         }
                         lastI = i;
                     }
                     lastMessageNumber = lastI;
-                    Console.Write(".");
+                    Console.WriteLine(".");
                     Thread.Sleep(1000);
                 }
-                Console.WriteLine();
                 return false;
             }
             else
@@ -69,7 +67,7 @@ namespace Task1Client
         {
             if (ServerEndPoint != null)
             {
-                var msg = new Message(text, this.Name, to);
+                var msg = new Message(text, this.Name, to, ListeningPort);
                 await base.SendMessageAsync(msg, ServerEndPoint);
             }
             else

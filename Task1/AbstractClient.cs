@@ -12,16 +12,29 @@ namespace Task1
 {
     public abstract class AbstractClient
     {
-        protected UdpClient UdpClient { get; init; }
-        protected UdpClient ListenerUdpClient { get; init; }
-        private IPAddress LocalAddress { get; init; }
+        protected UdpClient SendingUdpClient { get; init; }
+        protected UdpClient ListeningUdpClient { get; init; }
+        protected int ListeningPort { get; init; }
+        protected IPAddress LocalAddress { get; init; }
         protected BlockingCollection<(Message, IPEndPoint)> InBox { get; init; } = [];
         private CancellationTokenSource StopReceivingTokenSource = new CancellationTokenSource();
         public AbstractClient(int receiverPort)
         {
             this.LocalAddress = GetLocalIPAddress();
-            this.UdpClient = receiverPort > 0 ? new UdpClient(receiverPort) : new UdpClient();
-            this.ListenerUdpClient = new UdpClient();
+            if (receiverPort > 0) 
+            {
+                this.ListeningUdpClient = new UdpClient(receiverPort);
+                this.ListeningPort = receiverPort;
+            }
+            else
+            {
+                this.ListeningUdpClient = new UdpClient();
+                if (this.ListeningUdpClient.Client.LocalEndPoint != null)
+                    this.ListeningPort = ((IPEndPoint)this.ListeningUdpClient.Client.LocalEndPoint).Port;
+                else
+                    throw new Exception("Не удалось получить номер порта для получения сообщений.");                
+            }
+            this.SendingUdpClient = new UdpClient();
         }
         public static IPAddress GetLocalIPAddress()
         {
@@ -37,7 +50,7 @@ namespace Task1
             var stop = StopReceivingTokenSource.Token;
             while (true && !stop.IsCancellationRequested)
             {
-                var result = await ListenerUdpClient.ReceiveAsync();
+                var result = await ListeningUdpClient.ReceiveAsync();
                 var messageJson = Encoding.UTF8.GetString(result.Buffer);
                 Message? message = Message.DeserializeFromJson(messageJson);
                 if (message != null)
@@ -55,7 +68,7 @@ namespace Task1
         {
             string json = message.SerializeToJson();
             var data = Encoding.UTF8.GetBytes(json);
-            await UdpClient.SendAsync(data, data.Length, receiverEndPoint);
+            await SendingUdpClient.SendAsync(data, data.Length, receiverEndPoint);
         }
     }
 }

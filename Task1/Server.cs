@@ -18,16 +18,7 @@ namespace Task1
         public Server(int receiverPort) : base(receiverPort)
         {
             Console.WriteLine("Сервер инициализирован с адресом:");
-            if (UdpClient.Client.LocalEndPoint != null)
-            {
-                var localEP = (IPEndPoint)UdpClient.Client.LocalEndPoint;
-                var IPAddress = AbstractClient.GetLocalIPAddress();
-                Console.WriteLine($"{IPAddress}:{localEP.Port}");
-            }
-            else 
-            {
-                throw new Exception("Server initialization error.");
-            }
+            Console.WriteLine($"{LocalAddress}:{ListeningPort}");
         }
         public void Run()
         {
@@ -84,89 +75,81 @@ namespace Task1
                     else
                     {
                         this.clients.Add(sender, ip);
-                        for (int i = 0; i < 100; i++)
-                        {
-                            var reply = Task.Run(() => SendAnswerAsync(message, ip, $"register is ok"));
-                        }
+                        Task.Run(() => SendAnswerAsync(message, ip, $"register is ok"));
                         Console.WriteLine($"Client {message.From} is registered with IP {ip.Address}:{ip.Port}.");
                     }
                 }
             }
-            else VerifyClient(message);
+            else VerifyClient(message, ip);
         }
         public async Task SendServerMessageAsync(string message, string to, IPEndPoint ip)
         {
-            await SendMessageAsync(new Message(message, "server", to), ip);
+            await SendMessageAsync(new Message(message, "server", to, ListeningPort), ip);
         }
         public async Task SendAnswerAsync(Message message, IPEndPoint ip, string answer)
         {
-            await SendServerMessageAsync(answer, message.From, ip);
+            await SendServerMessageAsync(answer, message.From, new IPEndPoint(ip.Address, message.AnswerPort));
         }
         
-      private void VerifyClient(Message message)
-      {
-            Console.WriteLine("Верификация клиента...");
-            /*
-             if (clients.ContainsKey(message.From.ToLower()))
-             {
-                 if (this.clients[message.From.ToLower()].Address.ToString() == message.SenderIP
-                     && this.clients[message.From.ToLower()].Port == message.SenderPort)
-                 {
-                     TransitPublicMessage(message);
-                 }
-                 else SendAnswer(message, $"Client with name \"{message.From}\" is already registered with another IP. Change your name and try again.");
-             }
-             else
-             {
-                 SendAnswer(message, "Client was not registered.");
-             }
-            */
+        private void VerifyClient(Message message, IPEndPoint ip)
+        {
+            Console.WriteLine("Верификация клиента");
+            if (clients.ContainsKey(message.From.ToLower()))
+            {
+                if (this.clients[message.From.ToLower()].Equals(ip)) TransitPublicMessage(message);
+                else Task.Run(() => SendAnswerAsync(message, ip,
+                    $"Client with name \"{message.From}\" is already registered with another IP."
+                    + "Change your name and try again."));
+            }
+            else Task.Run(() => SendAnswerAsync(message, ip, "Client was not registered."));
         }
-        /*
+        
         private void TransitPublicMessage(Message message)
         {
-            if (message.To.ToLower() == "public") SendVerifiedPublicMessage(message);
-            else TransitPersonalMessage(message);
+            Console.WriteLine("Публичное сообщение");
+            //if (message.To.ToLower() == "public") SendVerifiedPublicMessage(message);
+            //else TransitPersonalMessage(message);
         }
-        private void TransitPersonalMessage(Message message)
-        {
-            string receiver = message.To.ToLower();
-            if (this.clients.ContainsKey(receiver)) SendVerifiedPersonalMessage(message);
-            else SendAnswer(message, $"There is no registered client with name \"{message.To}\".");
-        }
-        private void SendVerifiedPublicMessage(Message message)
-        {
-            foreach (var c in this.clients)
-            {
-                if (c.Key != message.From.ToLower())
-                {
-                    SendMessage(message, c.Value);
-                }
-            }
-            SendConfirmation(message);
-        }
-        private void SendVerifiedPersonalMessage(Message message)
-        {
-            SendMessage(message, this.clients[message.To.ToLower()]);
-            SendConfirmation(message);
-        }
-        private static string GetMessageReceivedText(Message message)
-        {
-            return $"{message.DateTime}: Получено сообщение от \"{message.From}\" к \"{message.To}\" с текстом: \"{message.Text}\".";
-        }
-        private void SendAnswer(Message message, string answerText)
-        {
-            IPEndPoint senderEndPoint = GetSenderIPEndPoint(message);
-            if (senderEndPoint != null)
-            {
-                var answer = new Message(answerText, "Server", message.From, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
-                this.SendMessage(answer, senderEndPoint);
-            }
-        }
-        private void SendConfirmation(Message message)
-        {
-            SendAnswer(message, "Message delivered.");
-        }
-        */
+        /*
+         private void TransitPersonalMessage(Message message)
+         {
+             string receiver = message.To.ToLower();
+             if (this.clients.ContainsKey(receiver)) SendVerifiedPersonalMessage(message);
+             else SendAnswer(message, $"There is no registered client with name \"{message.To}\".");
+         }
+         private void SendVerifiedPublicMessage(Message message)
+         {
+             foreach (var c in this.clients)
+             {
+                 if (c.Key != message.From.ToLower())
+                 {
+                     SendMessage(message, c.Value);
+                 }
+             }
+             SendConfirmation(message);
+         }
+         private void SendVerifiedPersonalMessage(Message message)
+         {
+             SendMessage(message, this.clients[message.To.ToLower()]);
+             SendConfirmation(message);
+         }
+         private static string GetMessageReceivedText(Message message)
+         {
+             return $"{message.DateTime}: Получено сообщение от \"{message.From}\" к \"{message.To}\" с текстом: \"{message.Text}\".";
+         }
+         private void SendAnswer(Message message, string answerText)
+         {
+             IPEndPoint senderEndPoint = GetSenderIPEndPoint(message);
+             if (senderEndPoint != null)
+             {
+                 var answer = new Message(answerText, "Server", message.From, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
+                 this.SendMessage(answer, senderEndPoint);
+             }
+         }
+         private void SendConfirmation(Message message)
+         {
+             SendAnswer(message, "Message delivered.");
+         }
+         */
     }
 }
