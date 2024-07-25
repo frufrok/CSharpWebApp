@@ -18,9 +18,9 @@ namespace Task1
         public Server(int receiverPort) : base(receiverPort)
         {
             Console.WriteLine("Сервер инициализирован с адресом:");
-            if (ListenerUdpClient.Client.LocalEndPoint != null)
+            if (UdpClient.Client.LocalEndPoint != null)
             {
-                var localEP = (IPEndPoint)ListenerUdpClient.Client.LocalEndPoint;
+                var localEP = (IPEndPoint)UdpClient.Client.LocalEndPoint;
                 var IPAddress = AbstractClient.GetLocalIPAddress();
                 Console.WriteLine($"{IPAddress}:{localEP.Port}");
             }
@@ -84,7 +84,10 @@ namespace Task1
                     else
                     {
                         this.clients.Add(sender, ip);
-                        Task.Run(() => SendAnswerAsync(message, ip, $"register is ok"));
+                        for (int i = 0; i < 100; i++)
+                        {
+                            var reply = Task.Run(() => SendAnswerAsync(message, ip, $"register is ok"));
+                        }
                         Console.WriteLine($"Client {message.From} is registered with IP {ip.Address}:{ip.Port}.");
                     }
                 }

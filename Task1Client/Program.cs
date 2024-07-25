@@ -15,15 +15,22 @@ namespace Task1Client
             var serverIPEndPoint = new IPEndPoint(AbstractClient.GetLocalIPAddress(), 12345);
             if (args.Length == 0)
             {
-                new Client("Azat", 0, serverIPEndPoint).Run();
+                new Client("Azat", 12346, serverIPEndPoint).Run();
             }
             else if (args.Length == 1)
             {
-                new Client(args[0], 0, serverIPEndPoint).Run();
+                new Client(args[0], 123456, serverIPEndPoint).Run();
+            }
+            else if (args.Length == 2)
+            {
+                if (int.TryParse(args[1], out int Port))
+                    new Client(args[0], Port, serverIPEndPoint).Run();
+                else
+                    Console.WriteLine($"Не удалось преобразовать строку {args[1]} в номер порта.");
             }
             else
             {
-                Console.WriteLine("Запустите клиент с использованием одного аргумента – имени пользователя.");
+                Console.WriteLine("Запустите клиент с использованием двух аргументов: имени пользователя и номера порта.");
             }
         }
     }

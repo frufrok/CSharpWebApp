@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -11,6 +12,7 @@ namespace Task1Client
     {
         public string Name { get; init; }
         public IPEndPoint? ServerEndPoint { get; init; }
+        private ConcurrentQueue<Message> rawMessages;
         public Client(string Name, int receiverPort, IPEndPoint serverEndPoint) : base(receiverPort)
         {
             this.Name = Name;
@@ -22,33 +24,40 @@ namespace Task1Client
         public void Run()
         {
             Console.WriteLine("Клиент запущен.");
-            Task.Run(() => base.StartMessageReceivingAsync((msg, ip) => { return; }));
+            Task.Run(() => base.StartMessageReceivingAsync((msg, ip) => { this.rawMessages.Enqueue(msg); }));
             Console.WriteLine("Запущено прослушивание входящих сообщений.");
+            //Task.Run(this.PrintInbox);
+            Console.WriteLine("Запущен вывод входящих сообщений в консоль.");
             if (RegisterClient()) StartWorkingCycle();
+            else Console.WriteLine("Регистрация клиента не удалась. Работа программы завершена.");
         }
         private bool RegisterClient()
         {
-            Console.WriteLine("Регистрация клиента.");
+            Console.Write("Регистрация клиента");
             if (ServerEndPoint != null)
             {
                 int lastMessageNumber = base.InBox.Count;
-                Task.Run(() => SendMessageAsync("server", "register")).Wait();
+                Task.Run(() => SendMessageAsync("server", "register"));
                 int k = 0;
                 while(k++ < 10)
                 {
+                    int lastI = 0;
                     for (int i = lastMessageNumber; i < base.InBox.Count; i++)
                     {
-                        var msg = base.InBox[i].Key;
+                        var msg = base.InBox.ElementAt(i).Item1;
                         if (msg.From.ToLower().Equals("server") && msg.Text.ToLower().Equals("register is ok"))
                         {
+                            Console.WriteLine();
                             Console.WriteLine("Регистрация успешна.");
                             return true;
                         }
+                        lastI = i;
                     }
-                    lastMessageNumber = base.InBox.Count;
+                    lastMessageNumber = lastI;
                     Console.Write(".");
                     Thread.Sleep(1000);
                 }
+                Console.WriteLine();
                 return false;
             }
             else
@@ -66,6 +75,16 @@ namespace Task1Client
             else
             {
                 Console.WriteLine("EndPoint сервера недоступен.");
+            }
+        }
+        private void PrintInbox()
+        {
+            while(true)
+            {
+                if (this.rawMessages.TryDequeue(out var msg))
+                {
+                    Console.WriteLine(msg);
+                }
             }
         }
         private void StartWorkingCycle()
