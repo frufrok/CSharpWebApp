@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 
 namespace Task1
 {
-    public class Message(string text, string from, string to)
+    public class Message(string text, string from, string to, int answerPort)
     {
         public string Text { get; set; } = text;
         public DateTime DateTime { get; set; } = DateTime.UtcNow;
         public string From { get; set; } = from;
         public string To { get; set; } = to;
+        public int AnswerPort { get; set; } = answerPort;
         public string SerializeToJson()
         {
             return JsonSerializer.Serialize(this);
@@ -29,19 +30,20 @@ namespace Task1
                 return String.Equals(this.Text, that.Text)
                 && String.Equals(this.From, that.From)
                 && String.Equals(this.To, that.To)
-                && DateTime.Equals(this.DateTime, that.DateTime);
+                && DateTime.Equals(this.DateTime, that.DateTime)
+                && int.Equals(this.AnswerPort, that.AnswerPort);
             }
             else return false;
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(this.Text, this.From, this.To, this.DateTime);
+            return HashCode.Combine(this.Text, this.From, this.To, this.DateTime, this.AnswerPort);
         }
 
         public override string ToString()
         {
-            return $"{DateTime} From: {From}. To: {To}. Text: {Text}";
+            return $"{DateTime} From: {From}. To: {To}. Answer port: {AnswerPort}. Text: {Text}.";
         }
     }
 }
