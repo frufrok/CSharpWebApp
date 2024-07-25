@@ -11,80 +11,50 @@ namespace Task1
 {
     public abstract class AbstractClient
     {
-        public int ReceiverPort { get; set; }
-        public IPEndPoint IPEndPoint { get; init; }
-        public UdpClient UdpClient { get; init; }
+        protected UdpClient SenderUdpClient { get; init; }
+        protected UdpClient ListenerUdpClient { get; init; }
+        private IPAddress LocalAddress { get; init; }
+        protected List<KeyValuePair<Message, IPEndPoint>> InBox { get; init; } = [];
+        private CancellationTokenSource StopReceivingTokenSource = new CancellationTokenSource();
         public AbstractClient(int receiverPort)
         {
-            var ipString = GetLocalIPAddress();
-            if (IPAddress.TryParse(ipString, out IPAddress? ip))
-            {
-                this.IPEndPoint = new IPEndPoint(ip, receiverPort);
-            }
-            else
-            {
-                throw new Exception($"Can't parse ip address from string \"{ipString}\".");
-            }
-            this.ReceiverPort = this.IPEndPoint.Port;
-            UdpClient = new UdpClient(receiverPort);
-            if (UdpClient.Client.LocalEndPoint != null)
-            {
-                this.IPEndPoint.Port = ((IPEndPoint)UdpClient.Client.LocalEndPoint).Port;
-            }
+            this.LocalAddress = GetLocalIPAddress();
+            this.ListenerUdpClient = receiverPort > 0 ? new UdpClient(receiverPort) : new UdpClient();
+            this.SenderUdpClient = new UdpClient();
         }
-        public static string GetLocalIPAddress()
+        public static IPAddress GetLocalIPAddress()
         {
             var host = Dns.GetHostEntry(Dns.GetHostName());
             foreach (var ip in host.AddressList)
             {
-                if (ip.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    return ip.ToString();
-                }
+                if (ip.AddressFamily == AddressFamily.InterNetwork) return ip;
             }
             throw new Exception("No network adapters with an IPv4 address in the system!");
         }
-        protected Message? ReceiveMessage(IPEndPoint senderEndPoint, int remainingTime)
+        protected async Task StartMessageReceivingAsync(Action<Message, IPEndPoint> PreliminaryHandling)
         {
-            while (true)
+            var stop = StopReceivingTokenSource.Token;
+            while (true && !stop.IsCancellationRequested)
             {
-                byte[]? buffer = null;
-                object lockObj = new object();
-                var receiveTask = Task.Run(() =>
+                var result = await ListenerUdpClient.ReceiveAsync();
+                var messageJson = Encoding.UTF8.GetString(result.Buffer);
+                Message? message = Message.DeserializeFromJson(messageJson);
+                if (message != null)
                 {
-                    try
-                    {
-                        buffer = this.UdpClient.Receive(ref senderEndPoint);
-                    }
-                    catch (SocketException ex)
-                    {
-                        Console.WriteLine("Нет ответа от сервера.");
-                    }
-                });
-                var remaining = Task.Run(() => Thread.Sleep(remainingTime));
-                Task.WaitAny([receiveTask, remaining]);
-                lock (lockObj)
-                {
-                    if (buffer != null)
-                    {
-                        var messageJson = Encoding.UTF8.GetString(buffer);
-                        Message? message = Message.DeserializeFromJson(messageJson);
-                        if (message != null) return message;
-                    }
-                    else
-                    {
-                        UdpClient.Close();
-                        receiveTask.Wait();
-                        return null;
-                    }
+                    PreliminaryHandling(message, result.RemoteEndPoint);
+                    InBox.Add(new(message, result.RemoteEndPoint));
                 }
             }
         }
-        protected void SendMessage(Message message, IPEndPoint receiverEndPoint)
+        protected void StopMessageReceiving()
         {
-                string json = message.SerializeToJson();
-                var data = Encoding.UTF8.GetBytes(json);
-                new UdpClient().Send(data, data.Length, receiverEndPoint);
+            this.StopReceivingTokenSource.Cancel();
+        }
+        protected async Task SendMessageAsync(Message message, IPEndPoint receiverEndPoint)
+        {
+            string json = message.SerializeToJson();
+            var data = Encoding.UTF8.GetBytes(json);
+            await SenderUdpClient.SendAsync(data, data.Length, receiverEndPoint);
         }
     }
 }

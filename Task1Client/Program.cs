@@ -12,18 +12,14 @@ namespace Task1Client
     {
         public static void Main(string[] args)
         {
-            if (args.Length == 1)
+            var serverIPEndPoint = new IPEndPoint(AbstractClient.GetLocalIPAddress(), 12345);
+            if (args.Length == 0)
             {
-                try
-                {
-                    var serverIPEndPoint = new IPEndPoint(IPAddress.Parse(AbstractClient.GetLocalIPAddress()), 12345);
-                    Client client = new Client(args[0], 0, serverIPEndPoint);
-                    client.Run();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Ошибка чтения IP-адреса: " + ex.Message);
-                }
+                new Client("Azat", 0, serverIPEndPoint).Run();
+            }
+            else if (args.Length == 1)
+            {
+                new Client(args[0], 0, serverIPEndPoint).Run();
             }
             else
             {

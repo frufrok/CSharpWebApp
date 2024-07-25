@@ -15,36 +15,61 @@ namespace Task1Client
         {
             this.Name = Name;
             ServerEndPoint = serverEndPoint;
-            Console.WriteLine("Клиент инициализирован c IP адресом:");
-            Console.WriteLine(this.IPEndPoint.Address.ToString());
-            Console.WriteLine("Номер порта:");
-            Console.WriteLine(this.IPEndPoint.Port.ToString());
-            Console.WriteLine("IP адрес сервера:");
-            Console.WriteLine(ServerEndPoint?.Address.ToString());
+            Console.WriteLine($"Запущен клиент {this.Name}.");
+            Console.WriteLine("Адрес сервера:");
+            Console.WriteLine($"{ServerEndPoint?.Address.ToString()}:{ServerEndPoint?.Port}");
         }
-        private void RegisterClient()
+        public void Run()
         {
+            Console.WriteLine("Клиент запущен.");
+            Task.Run(() => base.StartMessageReceivingAsync((msg, ip) => { return; }));
+            Console.WriteLine("Запущено прослушивание входящих сообщений.");
+            if (RegisterClient()) StartWorkingCycle();
+        }
+        private bool RegisterClient()
+        {
+            Console.WriteLine("Регистрация клиента.");
             if (ServerEndPoint != null)
             {
-                SendMessage("server", "register", out Message? answer);
-                if (answer != null && answer.Text.ToLower().StartsWith("ok"))
+                int lastMessageNumber = base.InBox.Count;
+                Task.Run(() => SendMessageAsync("server", "register")).Wait();
+                int k = 0;
+                while(k++ < 10)
                 {
-                    Console.WriteLine("Client is registered.");
+                    for (int i = lastMessageNumber; i < base.InBox.Count; i++)
+                    {
+                        var msg = base.InBox[i].Key;
+                        if (msg.From.ToLower().Equals("server") && msg.Text.ToLower().Equals("register is ok"))
+                        {
+                            Console.WriteLine("Регистрация успешна.");
+                            return true;
+                        }
+                    }
+                    lastMessageNumber = base.InBox.Count;
+                    Console.Write(".");
+                    Thread.Sleep(1000);
                 }
-                else 
-                {
-                    throw new Exception("Client is not registered.");
-                }
+                return false;
             }
             else
             {
                 throw new Exception("Server IPEndPoint is null. Cannot register client.");
             }
         }
-        public void Run()
+        private async Task SendMessageAsync(string to, string text)
         {
-            Console.WriteLine("Клиент запущен.");
-            RegisterClient();
+            if (ServerEndPoint != null)
+            {
+                var msg = new Message(text, this.Name, to);
+                await base.SendMessageAsync(msg, ServerEndPoint);
+            }
+            else
+            {
+                Console.WriteLine("EndPoint сервера недоступен.");
+            }
+        }
+        private void StartWorkingCycle()
+        {
             while (true)
             {
                 while (true)
@@ -63,7 +88,7 @@ namespace Task1Client
                     {
                         Console.WriteLine("Введите сообщение:");
                         text = Console.ReadLine();
-                        exitFlag = text!= null && text.ToLower().Equals("exit");
+                        exitFlag = text != null && text.ToLower().Equals("exit");
                     }
                     while (string.IsNullOrEmpty(text) && !exitFlag);
                     if (exitFlag)
@@ -71,29 +96,9 @@ namespace Task1Client
                         Console.WriteLine("Работа клиента завершена.");
                         break;
                     }
-                    else SendPersonalMessage(toName??String.Empty, text??String.Empty);
+                    else Task.Run(() => SendMessageAsync(toName ?? String.Empty, text ?? String.Empty));
                 }
             }
-        }
-        private void SendMessage(string to, string text, out Message? answer)
-        {
-            if (ServerEndPoint != null)
-            {
-                var msg = new Message(text, this.Name, to, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
-                SendMessage(msg, ServerEndPoint);
-                answer = ReceiveMessage(ServerEndPoint, 5000);
-            }
-            else
-            {
-                Console.WriteLine("EndPoint сервера недоступен.");
-                answer = null;
-            }
-        }
-        private void SendPersonalMessage(string to, string text)
-        {
-            SendMessage(to, text, out Message? answer);
-            if (answer != null && answer.Text.Equals("Message delivered.")) Console.WriteLine("Message delivered.");
-            else Console.WriteLine("Message delivery confirmation doesn't received.");
         }
     }
 }
