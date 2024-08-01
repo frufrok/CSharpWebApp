@@ -46,7 +46,7 @@ namespace ClientLib
                     for (int i = lastMessageNumber; i < base.InBox.Count; i++)
                     {
                         var msg = base.InBox.ElementAt(i).Item1;
-                        if (msg.From.ToLower().Equals("server") && msg.Text.ToLower().Equals("register is ok"))
+                        if (msg.From.ToLower().Equals("server") && msg.Text.ToLower().Contains("you are registered with ip"))
                         {
                             Console.WriteLine("Регистрация успешна.");
                             return true;

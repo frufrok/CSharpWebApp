@@ -15,7 +15,7 @@ namespace ServerLib
     {
         public HashSet<string> ClientsSet { get => clients.Keys.ToHashSet(); }
         private readonly CancellationTokenSource serverStopTokenSource = new CancellationTokenSource();
-        private Dictionary<string, IPEndPoint> clients = [];
+        private Dictionary<string, ClientRecord> clients = [];
         private ConcurrentQueue<(Message, IPEndPoint)> rawMessages = [];
         public Server(int receiverPort) : base(receiverPort)
         {
@@ -49,13 +49,24 @@ namespace ServerLib
             }
             base.StopMessageReceiving();
         }
+        private async Task SendServerMessageAsync(string message, string to, IPEndPoint ip)
+        {
+            await SendMessageAsync(new Message(message, "server", to, ListeningPort), ip);
+        }
+        private async Task SendAnswerAsync(Message message, IPEndPoint ip, string answer)
+        {
+            await SendServerMessageAsync(answer, message.From, new IPEndPoint(ip.Address, message.AnswerPort));
+        }
+        private async Task SendConfirmationAsync(Message message, IPEndPoint ip)
+        {
+            await SendAnswerAsync(message, ip, "Message delivered.");
+        }
         private void HandleMessage(Message message, IPEndPoint ip)
         {
             Console.WriteLine($"С IP адреса {ip.Address}:{ip.Port} получено сообщение:");
             Console.WriteLine($"\t{message}");
             RegisterClient(message, ip);
         }
-      
         private void RegisterClient(Message message, IPEndPoint ip)
         {
             string sender = message.From.ToLower();
@@ -63,7 +74,7 @@ namespace ServerLib
             {
                 if (this.clients.ContainsKey(sender))
                 {
-                    if (this.clients[sender].Equals(ip))
+                    if (ClientsAreEquals(this.clients[sender], message, ip))
                     {
                         Task.Run(() => SendAnswerAsync(message, ip, "Client is already registered."));
                     }
@@ -76,82 +87,58 @@ namespace ServerLib
                         Task.Run(() => SendAnswerAsync(message, ip, $"Name {message.From} is unacceptable."));
                     else
                     {
-                        this.clients.Add(sender, ip);
-                        Task.Run(() => SendAnswerAsync(message, ip, $"register is ok"));
+                        this.clients.Add(sender, ClientRecord.GetFromMessageAndIP(message, ip));
+                        Task.Run(() => SendAnswerAsync(message, ip, $"You are registered with IP {ip.Address}:{ip.Port}."));
                         Console.WriteLine($"Client {message.From} is registered with IP {ip.Address}:{ip.Port}.");
                     }
                 }
             }
             else VerifyClient(message, ip);
         }
-        public async Task SendServerMessageAsync(string message, string to, IPEndPoint ip)
-        {
-            await SendMessageAsync(new Message(message, "server", to, ListeningPort), ip);
-        }
-        public async Task SendAnswerAsync(Message message, IPEndPoint ip, string answer)
-        {
-            await SendServerMessageAsync(answer, message.From, new IPEndPoint(ip.Address, message.AnswerPort));
-        }
-        
         private void VerifyClient(Message message, IPEndPoint ip)
         {
-            Console.WriteLine("Верификация клиента");
             if (clients.ContainsKey(message.From.ToLower()))
             {
-                if (this.clients[message.From.ToLower()].Equals(ip)) TransitPublicMessage(message);
+                ClientRecord from = this.clients[message.From.ToLower()];
+                if (ClientsAreEquals(this.clients[message.From.ToLower()], message, ip)) TransitPublicMessage(message, from);
                 else Task.Run(() => SendAnswerAsync(message, ip,
                     $"Client with name \"{message.From}\" is already registered with another IP."
                     + "Change your name and try again."));
             }
             else Task.Run(() => SendAnswerAsync(message, ip, "Client was not registered."));
         }
-        
-        private void TransitPublicMessage(Message message)
+        private bool ClientsAreEquals(ClientRecord saved, Message message, IPEndPoint ip)
         {
-            Console.WriteLine("Публичное сообщение");
-            //if (message.To.ToLower() == "public") SendVerifiedPublicMessage(message);
-            //else TransitPersonalMessage(message);
+            ClientRecord clientToRegister = ClientRecord.GetFromMessageAndIP(message, ip);
+            return saved.Equals(clientToRegister);
         }
-        /*
-         private void TransitPersonalMessage(Message message)
+        private void TransitPublicMessage(Message message, ClientRecord from)
+        {
+            if (message.To.ToLower() == "public") Task.Run(() => SendPublicMessage(message, from));
+            else TransitPersonalMessage(message, from);
+        }
+        private void TransitPersonalMessage(Message message, ClientRecord from)
          {
-             string receiver = message.To.ToLower();
-             if (this.clients.ContainsKey(receiver)) SendVerifiedPersonalMessage(message);
-             else SendAnswer(message, $"There is no registered client with name \"{message.To}\".");
+            string receiver = message.To.ToLower();
+            if (this.clients.TryGetValue(receiver, out ClientRecord? to)) SendPersonalMessage(message, from, to);
+            else Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"There is no registered client with name \"{message.To}\"."));
          }
-         private void SendVerifiedPublicMessage(Message message)
+        private void SendPublicMessage(Message message, ClientRecord from)
          {
-             foreach (var c in this.clients)
-             {
-                 if (c.Key != message.From.ToLower())
-                 {
-                     SendMessage(message, c.Value);
-                 }
-             }
-             SendConfirmation(message);
-         }
-         private void SendVerifiedPersonalMessage(Message message)
-         {
-             SendMessage(message, this.clients[message.To.ToLower()]);
-             SendConfirmation(message);
-         }
-         private static string GetMessageReceivedText(Message message)
-         {
-             return $"{message.DateTime}: Получено сообщение от \"{message.From}\" к \"{message.To}\" с текстом: \"{message.Text}\".";
-         }
-         private void SendAnswer(Message message, string answerText)
-         {
-             IPEndPoint senderEndPoint = GetSenderIPEndPoint(message);
-             if (senderEndPoint != null)
-             {
-                 var answer = new Message(answerText, "Server", message.From, this.IPEndPoint.Address.ToString(), this.IPEndPoint.Port);
-                 this.SendMessage(answer, senderEndPoint);
-             }
-         }
-         private void SendConfirmation(Message message)
-         {
-             SendAnswer(message, "Message delivered.");
-         }
-         */
+            foreach (var c in this.clients)
+            {
+                if (!c.Value.Equals(from))
+                {
+                    Task.Run(() => SendMessageAsync(message, c.Value.ListeningIP).Wait());
+                }
+            }
+            Task.Run(() => SendConfirmationAsync(message, from.ListeningIP));
+        }
+        
+        private void SendPersonalMessage(Message message, ClientRecord from, ClientRecord to)
+        {
+            Task.Run(() => SendMessageAsync(message, to.ListeningIP));
+            Task.Run(() => SendConfirmationAsync(message, from.ListeningIP));
+        }
     }
 }
