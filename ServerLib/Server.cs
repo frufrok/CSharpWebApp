@@ -55,7 +55,7 @@ namespace ServerLib
         }
         private async Task SendAnswerAsync(Message message, IPEndPoint ip, string answer)
         {
-            await SendServerMessageAsync(answer, message.From, new IPEndPoint(ip.Address, message.AnswerPort));
+            await SendServerMessageAsync(answer, message.Sender, new IPEndPoint(ip.Address, message.AnswerPort));
         }
         private async Task SendConfirmationAsync(Message message, IPEndPoint ip)
         {
@@ -65,63 +65,58 @@ namespace ServerLib
         {
             Console.WriteLine($"С IP адреса {ip.Address}:{ip.Port} получено сообщение:");
             Console.WriteLine($"\t{message}");
-            RegisterClient(message, ip);
+            ClientRecord from = ClientRecord.GetFromMessageAndIP(message, ip);
+            RegisterClient(message, from);
         }
-        private void RegisterClient(Message message, IPEndPoint ip)
+        private void RegisterClient(Message message, ClientRecord from)
         {
-            string sender = message.From.ToLower();
-            if (message.To.ToLower().Equals("server") && message.Text.ToLower().Equals("register"))
+            if (message.Receiver.ToLower().Equals("server") && message.Text.ToLower().Equals("register"))
             {
-                if (this.clients.ContainsKey(sender))
+                if (this.clients.ContainsKey(from.AliasName))
                 {
-                    if (ClientsAreEquals(this.clients[sender], message, ip))
+                    if (from.Equals(this.clients[from.AliasName]))
                     {
-                        Task.Run(() => SendAnswerAsync(message, ip, "Client is already registered."));
+                        Task.Run(() => SendAnswerAsync(message, from.ListeningIP, "Client is already registered."));
                     }
-                    else Task.Run(() => SendAnswerAsync(message, ip,
-                        $"Client with name \"{message.From}\" is already registered with another IP. Change your name and try again."));
+                    else Task.Run(() => SendAnswerAsync(message, from.ListeningIP,
+                        $"Client with name \"{message.Sender}\" is already registered with another IP. Change your name and try again."));
                 }
                 else
                 {
-                    if (sender.Equals("server") || sender.Equals("public")) 
-                        Task.Run(() => SendAnswerAsync(message, ip, $"Name {message.From} is unacceptable."));
+                    if (from.AliasName.Equals("server") || from.AliasName.Equals("public")) 
+                        Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"Name {message.Sender} is unacceptable."));
                     else
                     {
-                        this.clients.Add(sender, ClientRecord.GetFromMessageAndIP(message, ip));
-                        Task.Run(() => SendAnswerAsync(message, ip, $"You are registered with IP {ip.Address}:{ip.Port}."));
-                        Console.WriteLine($"Client {message.From} is registered with IP {ip.Address}:{ip.Port}.");
+                        this.clients.Add(from.AliasName, from);
+                        Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"You are registered with IP {from.ListeningIP.Address}:{from.ListeningIP.Port}."));
+                        Console.WriteLine($"Client {message.Sender} is registered with IP {from.ListeningIP.Address}:{from.ListeningIP.Port}.");
                     }
                 }
             }
-            else VerifyClient(message, ip);
+            else VerifyClient(message, from);
         }
-        private void VerifyClient(Message message, IPEndPoint ip)
+        private void VerifyClient(Message message, ClientRecord from)
         {
-            if (clients.ContainsKey(message.From.ToLower()))
+            if (clients.ContainsKey(from.AliasName))
             {
-                ClientRecord from = this.clients[message.From.ToLower()];
-                if (ClientsAreEquals(this.clients[message.From.ToLower()], message, ip)) TransitPublicMessage(message, from);
-                else Task.Run(() => SendAnswerAsync(message, ip,
-                    $"Client with name \"{message.From}\" is already registered with another IP."
+                
+                if (this.clients[from.AliasName].Equals(from)) TransitPublicMessage(message, from);
+                else Task.Run(() => SendAnswerAsync(message, from.ListeningIP,
+                    $"Client with name \"{message.Sender}\" is already registered with another IP."
                     + "Change your name and try again."));
             }
-            else Task.Run(() => SendAnswerAsync(message, ip, "Client was not registered."));
-        }
-        private bool ClientsAreEquals(ClientRecord saved, Message message, IPEndPoint ip)
-        {
-            ClientRecord clientToRegister = ClientRecord.GetFromMessageAndIP(message, ip);
-            return saved.Equals(clientToRegister);
+            else Task.Run(() => SendAnswerAsync(message, from.ListeningIP, "Client was not registered."));
         }
         private void TransitPublicMessage(Message message, ClientRecord from)
         {
-            if (message.To.ToLower() == "public") Task.Run(() => SendPublicMessage(message, from));
+            if (message.Receiver.ToLower() == "public") Task.Run(() => SendPublicMessage(message, from));
             else TransitPersonalMessage(message, from);
         }
         private void TransitPersonalMessage(Message message, ClientRecord from)
          {
-            string receiver = message.To.ToLower();
+            string receiver = message.Receiver.ToLower();
             if (this.clients.TryGetValue(receiver, out ClientRecord? to)) SendPersonalMessage(message, from, to);
-            else Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"There is no registered client with name \"{message.To}\"."));
+            else Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"There is no registered client with name \"{message.Receiver}\"."));
          }
         private void SendPublicMessage(Message message, ClientRecord from)
          {
@@ -134,7 +129,6 @@ namespace ServerLib
             }
             Task.Run(() => SendConfirmationAsync(message, from.ListeningIP));
         }
-        
         private void SendPersonalMessage(Message message, ClientRecord from, ClientRecord to)
         {
             Task.Run(() => SendMessageAsync(message, to.ListeningIP));

@@ -10,6 +10,7 @@ namespace ServerLib
     public class ClientRecord(string name, IPEndPoint listeningIP, IPEndPoint sendingIP)
     {
         public string Name { get; set; } = name;
+        public string AliasName { get => this.Name.ToLower(); }
         public IPEndPoint ListeningIP { get; set; } = listeningIP;
         public IPEndPoint SendingIP { get; set; } = sendingIP;
         public override int GetHashCode()
@@ -33,7 +34,7 @@ namespace ServerLib
         }
         public static ClientRecord GetFromMessageAndIP(Message message, IPEndPoint ip)
         {
-            return new ClientRecord(message.From, new IPEndPoint(ip.Address, message.AnswerPort), ip);
+            return new ClientRecord(message.Sender, new IPEndPoint(ip.Address, message.AnswerPort), ip);
         }
     }
 }

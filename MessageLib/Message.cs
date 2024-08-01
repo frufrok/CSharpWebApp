@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 
 namespace MessageLib
 {
-    public class Message(string text, string from, string to, int answerPort)
+    public class Message(string text, string sender, string receiver, int answerPort)
     {
         public string Text { get; set; } = text;
         public DateTime DateTime { get; set; } = DateTime.UtcNow;
-        public string From { get; set; } = from;
-        public string To { get; set; } = to;
+        public string Sender { get; set; } = sender;
+        public string Receiver { get; set; } = receiver;
         public int AnswerPort { get; set; } = answerPort;
         public string SerializeToJson()
         {
@@ -28,8 +28,8 @@ namespace MessageLib
             {
                 var that = (Message)obj;
                 return String.Equals(this.Text, that.Text)
-                && String.Equals(this.From, that.From)
-                && String.Equals(this.To, that.To)
+                && String.Equals(this.Sender, that.Sender)
+                && String.Equals(this.Receiver, that.Receiver)
                 && DateTime.Equals(this.DateTime, that.DateTime)
                 && int.Equals(this.AnswerPort, that.AnswerPort);
             }
@@ -38,12 +38,12 @@ namespace MessageLib
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(this.Text, this.From, this.To, this.DateTime, this.AnswerPort);
+            return HashCode.Combine(this.Text, this.Sender, this.Receiver, this.DateTime, this.AnswerPort);
         }
 
         public override string ToString()
         {
-            return $"{DateTime} From: {From}. To: {To}. Answer port: {AnswerPort}. Text: {Text}.";
+            return $"{DateTime} From: {Sender}. To: {Receiver}. Answer port: {AnswerPort}. Text: {Text}.";
         }
     }
 }
