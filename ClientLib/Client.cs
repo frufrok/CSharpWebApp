@@ -82,7 +82,15 @@ namespace ClientLib
             {
                 if (this.rawMessages.TryDequeue(out var msg))
                 {
-                    Console.WriteLine(msg);
+                    if (msg.MessageType == MessageType.SIMPLE)
+                    {
+                        Console.WriteLine(msg);
+                    }
+                    else if (msg.MessageType == MessageType.LIST)
+                    {
+                        Message.ExtractMessages(msg)?.ForEach(x => Console.WriteLine(x));
+                    }
+                    
                 }
             }
         }

@@ -13,10 +13,11 @@ namespace ServerLib
 {
     public class Server : AbstractClient
     {
-        public HashSet<string> ClientsSet { get => clients.Keys.ToHashSet(); }
+        public HashSet<string> ClientsSet { get => [.. clients.Keys]; }
         private readonly CancellationTokenSource serverStopTokenSource = new CancellationTokenSource();
-        private Dictionary<string, ClientRecord> clients = [];
-        private ConcurrentQueue<(Message, IPEndPoint)> rawMessages = [];
+        private readonly Dictionary<string, ClientRecord> clients = [];
+        private readonly ConcurrentDictionary<string, BlockingCollection<Message>> unsentMessages = [];
+        private readonly ConcurrentQueue<(Message, IPEndPoint)> rawMessages = [];
         public Server(int receiverPort) : base(receiverPort)
         {
             Console.WriteLine("Сервер инициализирован с адресом:");
@@ -72,9 +73,9 @@ namespace ServerLib
         {
             if (message.Receiver.ToLower().Equals("server") && message.Text.ToLower().Equals("register"))
             {
-                if (this.clients.ContainsKey(from.AliasName))
+                if (clients.TryGetValue(from.AliasName, out ClientRecord? value))
                 {
-                    if (from.Equals(this.clients[from.AliasName]))
+                    if (from.Equals(value))
                     {
                         Task.Run(() => SendAnswerAsync(message, from.ListeningIP, "Client is already registered."));
                     }
@@ -88,8 +89,13 @@ namespace ServerLib
                     else
                     {
                         this.clients.Add(from.AliasName, from);
-                        Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"You are registered with IP {from.ListeningIP.Address}:{from.ListeningIP.Port}."));
+                        Task.Run(() => SendAnswerAsync(message, from.ListeningIP, 
+                            $"You are registered with IP {from.ListeningIP.Address}:{from.ListeningIP.Port}."));
                         Console.WriteLine($"Client {message.Sender} is registered with IP {from.ListeningIP.Address}:{from.ListeningIP.Port}.");
+                        if (unsentMessages.TryGetValue(from.AliasName, out var messages))
+                        {
+                            Task.Run(() => SendMessageAsync(Message.CreateListMessage(messages, "server", from.Name, this.ListeningPort), from.ListeningIP));
+                        }
                     }
                 }
             }
@@ -97,10 +103,9 @@ namespace ServerLib
         }
         private void VerifyClient(Message message, ClientRecord from)
         {
-            if (clients.ContainsKey(from.AliasName))
+            if (clients.TryGetValue(from.AliasName, out ClientRecord? value))
             {
-                
-                if (this.clients[from.AliasName].Equals(from)) TransitPublicMessage(message, from);
+                if (value.Equals(from)) TransitPublicMessage(message, from);
                 else Task.Run(() => SendAnswerAsync(message, from.ListeningIP,
                     $"Client with name \"{message.Sender}\" is already registered with another IP."
                     + "Change your name and try again."));
@@ -113,13 +118,19 @@ namespace ServerLib
             else TransitPersonalMessage(message, from);
         }
         private void TransitPersonalMessage(Message message, ClientRecord from)
-         {
+        {
             string receiver = message.Receiver.ToLower();
             if (this.clients.TryGetValue(receiver, out ClientRecord? to)) SendPersonalMessage(message, from, to);
-            else Task.Run(() => SendAnswerAsync(message, from.ListeningIP, $"There is no registered client with name \"{message.Receiver}\"."));
-         }
+            else 
+            {
+                if (unsentMessages.TryGetValue(message.Receiver.ToLower(), out var messages)) messages.Add(message);
+                else unsentMessages.TryAdd(message.Receiver.ToLower(), [message]);
+                Task.Run(() => SendAnswerAsync(message, from.ListeningIP,
+                    $"There is no registered client with name \"{message.Receiver}\". Message will be sent after receiver registration."));
+            }
+        }
         private void SendPublicMessage(Message message, ClientRecord from)
-         {
+        {
             foreach (var c in this.clients)
             {
                 if (!c.Value.Equals(from))
